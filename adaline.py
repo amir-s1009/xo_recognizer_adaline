@@ -1,15 +1,25 @@
 import json
+import random
 from config import learning_rate, threshold, stop_condition
+
+train_dataset = []
+test_dataset = []
 
 weights = []
 bias = [0]
 
 def initialize():
+    global weights
+    global bias
+    global train_dataset
+    global test_dataset
+
+    weights = []
     for i in range(5):
         weights.append([])
         for j in range(5):
-            weights[i].append(0)     
-    bias[0] = 0
+            weights[i].append(random.uniform(0.01, 0.05))     
+    bias[0] = random.uniform(0.01, 0.05)
 
 def activation(Yin):
     if Yin > threshold:
@@ -37,6 +47,21 @@ def decode_label(activation):
     else:
         return 'NONE'
 
+def train_test_split(dataset):
+    global train_dataset
+    global test_dataset
+    
+    selected = 0
+    for i in range(len(dataset)):
+        if i % 5 == 0:
+            selected = random.randint(i, i+4)
+            test_dataset.append(dataset[selected])
+            if selected != i:
+                train_dataset.append(dataset[i])
+                
+        elif i != selected:
+            train_dataset.append(dataset[i])
+
 def train():
 
     file = None
@@ -47,20 +72,25 @@ def train():
 
         file = open('dataset.txt', 'r')
         data_set = file.readline()
+        data_set = json.loads(data_set)
         file.close()
 
-        data_set = json.loads(data_set)
+        train_test_split(data_set)
 
         #run adaline algorithm:
+        cur_change = 1
+        lts_change = 2
         max_change = 0
         first_pass = True
         epochs = 0
 
-        while max_change > stop_condition or first_pass:
+        while abs(cur_change-lts_change) > stop_condition or first_pass:
+            lts_change = cur_change
+            max_change = 0
             first_pass = False
-            for data in data_set:
+
+            for data in train_dataset:
                 Yin = 0
-                max_change = 0
 
                 for i in range(5):
                     for j in range(5):
@@ -77,8 +107,8 @@ def train():
                 bias[0] += variation
                 if variation > max_change:
                     max_change = variation
-                    
-            print(f'max change is {max_change} in this epoch.')
+
+            cur_change = max_change         
             epochs += 1
 
         print(f'training successful through {epochs} epochs!')
@@ -104,9 +134,7 @@ def test(test_data):
             for j in range(5):
                 Yin += test_data[i][j]*weights[i][j]
         Yin += bias[0]
-
-        print('Yin is:', Yin)
-
+        
         return decode_label(activation(Yin))
 
 
@@ -116,3 +144,29 @@ def test(test_data):
         if file:
             file.close()
         
+
+def accuracy_check():
+
+    global test_dataset
+
+    correct = 0
+
+    for data in test_dataset:
+        pred = test(data['features'])
+        if pred.lower() == data['label']:
+            correct += 1
+    print(f"adaline accuracy is: {correct/len(test_dataset)*100}%")
+
+    return correct/len(test_dataset)*100
+
+
+def average_accuracy_check(repeat:int):
+    avg = 0
+    for i in range(repeat):
+        train()
+        avg += accuracy_check()
+
+    print(f"avarage accuracy of adaline is {avg/repeat} %")
+
+train()
+average_accuracy_check(20)
